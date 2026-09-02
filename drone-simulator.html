@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Farmland Drone Simulator</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; background: #000; }
+  canvas { display: block; }
+
+  #hud {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 10;
+  }
+
+  /* Top bar */
+  #topBar {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 24px; align-items: center;
+    background: rgba(10,20,10,0.55); border: 1px solid rgba(120,255,120,0.25);
+    border-radius: 10px; padding: 8px 22px; backdrop-filter: blur(6px);
+    color: #c8f0c8; font-size: 14px; letter-spacing: 1px;
+  }
+  #topBar .stat { display: flex; flex-direction: column; align-items: center; }
+  #topBar .label { font-size: 10px; opacity: 0.6; text-transform: uppercase; }
+  #topBar .value { font-size: 18px; font-weight: bold; color: #6f6; font-variant-numeric: tabular-nums; }
+
+  /* Crosshair */
+  #crosshair {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 40px; height: 40px; border: 1.5px solid rgba(120,255,120,0.35);
+    border-radius: 50%;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: rgba(120,255,120,0.35);
+  }
+  #crosshair::before { top: 50%; left: -8px; right: -8px; height: 1px; transform: translateY(-50%); }
+  #crosshair::after { left: 50%; top: -8px; bottom: -8px; width: 1px; transform: translateX(-50%); }
+
+  /* Left panel - instruments */
+  #leftPanel {
+    position: absolute; bottom: 20px; left: 20px;
+    background: rgba(10,20,10,0.55); border: 1px solid rgba(120,255,120,0.25);
+    border-radius: 10px; padding: 14px 18px; backdrop-filter: blur(6px);
+    color: #c8f0c8; min-width: 200px;
+  }
+  #leftPanel h3 { font-size: 11px; opacity: 0.6; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 1px; }
+  .instrument { display: flex; justify-content: space-between; margin: 4px 0; font-size: 13px; }
+  .instrument .val { color: #6f6; font-weight: bold; font-variant-numeric: tabular-nums; }
+
+  /* Right panel - minimap */
+  #minimapContainer {
+    position: absolute; bottom: 20px; right: 20px;
+    background: rgba(10,20,10,0.55); border: 1px solid rgba(120,255,120,0.25);
+    border-radius: 10px; padding: 10px; backdrop-filter: blur(6px);
+  }
+  #minimapContainer h3 { font-size: 11px; opacity: 0.6; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 1px; color: #c8f0c8; text-align: center; }
+  #minimap { border-radius: 6px; display: block; }
+
+  /* Battery */
+  #batteryBar {
+    position: absolute; top: 12px; right: 20px;
+    background: rgba(10,20,10,0.55); border: 1px solid rgba(120,255,120,0.25);
+    border-radius: 10px; padding: 10px 16px; backdrop-filter: blur(6px);
+    color: #c8f0c8; text-align: center;
+  }
+  #batteryBar .label { font-size: 10px; opacity: 0.6; text-transform: uppercase; }
+  #batteryLevel { font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; }
+  #batteryFill {
+    width: 80px; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; margin-top: 4px; overflow: hidden;
+  }
+  #batteryFillInner { height: 100%; background: #6f6; border-radius: 4px; transition: width 0.3s, background 0.3s; }
+
+  /* Controls help */
+  #controlsHelp {
+    position: absolute; top: 12px; left: 20px;
+    background: rgba(10,20,10,0.55); border: 1px solid rgba(120,255,120,0.25);
+    border-radius: 10px; padding: 12px 16px; backdrop-filter: blur(6px);
+    color: #c8f0c8; font-size: 12px; line-height: 1.7;
+  }
+  #controlsHelp h3 { font-size: 11px; opacity: 0.6; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 1px; }
+  .key { display: inline-block; background: rgba(120,255,120,0.15); border: 1px solid rgba(120,255,120,0.3); border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: bold; min-width: 18px; text-align: center; }
+
+  /* Start screen */
+  #startScreen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: radial-gradient(ellipse at center, #1a3a1a 0%, #0a1a0a 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; color: #c8f0c8;
+  }
+  #startScreen h1 { font-size: 42px; margin-bottom: 8px; color: #6f6; text-shadow: 0 0 30px rgba(100,255,100,0.3); }
+  #startScreen p { font-size: 16px; opacity: 0.7; margin-bottom: 30px; max-width: 500px; text-align: center; line-height: 1.6; }
+  #startBtn {
+    pointer-events: auto; cursor: pointer; background: rgba(100,255,100,0.15);
+    border: 2px solid #6f6; color: #6f6; font-size: 20px; padding: 14px 48px;
+    border-radius: 10px; transition: all 0.2s; font-weight: bold; letter-spacing: 2px;
+  }
+  #startBtn:hover { background: rgba(100,255,100,0.3); box-shadow: 0 0 30px rgba(100,255,100,0.4); }
+  #controlsGrid {
+    display: grid; grid-template-columns: auto auto; gap: 6px 16px; margin-bottom: 30px; font-size: 14px;
+  }
+  #controlsGrid .key { margin-right: 8px; }
+
+  /* Crash / message overlay */
+  #messageOverlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    display: none; align-items: center; justify-content: center; z-index: 50;
+    background: rgba(0,0,0,0.6);
+  }
+  #messageBox {
+    background: rgba(10,20,10,0.9); border: 2px solid #6f6; border-radius: 14px;
+    padding: 30px 50px; text-align: center; color: #c8f0c8;
+  }
+  #messageBox h2 { font-size: 28px; color: #f66; margin-bottom: 10px; }
+  #messageBox p { font-size: 15px; opacity: 0.8; margin-bottom: 20px; }
+  #messageBox button {
+    pointer-events: auto; cursor: pointer; background: rgba(100,255,100,0.15);
+    border: 2px solid #6f6; color: #6f6; font-size: 16px; padding: 10px 36px;
+    border-radius: 8px; transition: all 0.2s; font-weight: bold;
+  }
+  #messageBox button:hover { background: rgba(100,255,100,0.3); }
+
+  /* Compass */
+  #compass {
+    position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+    width: 180px; height: 28px; overflow: hidden; position: absolute;
+    border: 1px solid rgba(120,255,120,0.25); border-radius: 6px;
+    background: rgba(10,20,10,0.55);
+  }
+  #compassStrip {
+    height: 100%; display: flex; align-items: center; position: absolute;
+    white-space: nowrap; color: #c8f0c8; font-size: 12px; font-weight: bold;
+    transition: transform 0.05s linear;
+  }
+  #compassCenter {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 2px; height: 100%; background: #6f6; z-index: 2;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="startScreen">
+  <h1>🚁 Farmland Drone Simulator</h1>
+  <p>Pilot a drone over rolling farmland. Survey crops, weave between barns and silos, and feel the physics of flight.</p>
+  <div id="controlsGrid">
+    <div><span class="key">W</span><span class="key">S</span></div><div>Forward / Back</div>
+    <div><span class="key">A</span><span class="key">D</span></div><div>Strafe Left / Right</div>
+    <div><span class="key">↑</span><span class="key">↓</span></div><div>Pitch (nose down/up)</div>
+    <div><span class="key">←</span><span class="key">→</span></div><div>Yaw (turn left/right)</div>
+    <div><span class="key">Q</span><span class="key">E</span></div><div>Roll left / right</div>
+    <div><span class="key">Shift</span></div><div>Ascend</div>
+    <div><span class="key">Ctrl</span></div><div>Descend</div>
+    <div><span class="key">V</span></div><div>Toggle camera view</div>
+    <div><span class="key">R</span></div><div>Reset drone</div>
+  </div>
+  <button id="startBtn" onclick="startGame()">START FLIGHT</button>
+</div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="topBar">
+    <div class="stat"><div class="label">Speed</div><div class="value" id="speedVal">0</div></div>
+    <div class="stat"><div class="label">Altitude</div><div class="value" id="altVal">0</div></div>
+    <div class="stat"><div class="label">Heading</div><div class="value" id="headingVal">0°</div></div>
+  </div>
+
+  <div id="compass"><div id="compassCenter"></div><div id="compassStrip"></div></div>
+
+  <div id="crosshair"></div>
+
+  <div id="controlsHelp">
+    <h3>Controls</h3>
+    <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> Move<br>
+    <span class="key">↑↓</span> Pitch &nbsp; <span class="key">←→</span> Yaw<br>
+    <span class="key">Q</span><span class="key">E</span> Roll<br>
+    <span class="key">Shift</span> Up &nbsp; <span class="key">Ctrl</span> Down<br>
+    <span class="key">V</span> Camera &nbsp; <span class="key">R</span> Reset
+  </div>
+
+  <div id="batteryBar">
+    <div class="label">Battery</div>
+    <div id="batteryLevel">100%</div>
+    <div id="batteryFill"><div id="batteryFillInner" style="width:100%"></div></div>
+  </div>
+
+  <div id="leftPanel">
+    <h3>Flight Data</h3>
+    <div class="instrument"><span>Throttle</span><span class="val" id="throttleVal">0%</span></div>
+    <div class="instrument"><span>Pitch</span><span class="val" id="pitchVal">0°</span></div>
+    <div class="instrument"><span>Roll</span><span class="val" id="rollVal">0°</span></div>
+    <div class="instrument"><span>Yaw</span><span class="val" id="yawVal">0°</span></div>
+    <div class="instrument"><span>V/Speed</span><span class="val" id="vspeedVal">0</span></div>
+    <div class="instrument"><span>Flight Time</span><span class="val" id="timeVal">00:00</span></div>
+  </div>
+
+  <div id="minimapContainer">
+    <h3>Radar</h3>
+    <canvas id="minimap" width="180" height="180"></canvas>
+  </div>
+</div>
+
+<!-- Message overlay -->
+<div id="messageOverlay">
+  <div id="messageBox">
+    <h2 id="msgTitle">CRASH!</h2>
+    <p id="msgText">Your drone hit the ground too hard.</p>
+    <button onclick="resetDrone()">RESPAWN</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ===================== GLOBALS =====================
+let scene, camera, renderer, clock;
+let drone, droneGroup;
+let propellers = [];
+let terrain, water;
+let collidables = [];
+let particles = [];
+let minimapCtx;
+let cameraMode = 0; // 0 = chase, 1 = FPV, 2 = orbit
+let orbitAngle = 0;
+let started = false;
+let flightStartTime = 0;
+let battery = 100;
+let crashed = false;
+
+// Drone state
+const droneState = {
+  position: new THREE.Vector3(0, 30, 40),
+  velocity: new THREE.Vector3(0, 0, 0),
+  rotation: new THREE.Euler(0, 0, 0, 'YXZ'),
+  angularVel: new THREE.Vector3(0, 0, 0),
+  throttle: 0,
+  thrust: 0,
+};
+
+const WORLD_SIZE = 600;
+const GRAVITY = 28;
+const MAX_THRUST = 45;
+const DRONE_MASS = 1.2;
+const GROUND_LEVEL = 0;
+
+// Input
+const keys = {};
+
+// ===================== INIT =====================
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87CEEB);
+  scene.fog = new THREE.Fog(0x87CEEB, 200, 550);
+
+  camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
+  camera.position.set(0, 40, 50);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  document.body.appendChild(renderer.domElement);
+
+  clock = new THREE.Clock();
+  minimapCtx = document.getElementById('minimap').getContext('2d');
+
+  createLights();
+  createSky();
+  createTerrain();
+  createFarms();
+  createVegetation();
+  createRoads();
+  createDrone();
+  createParticleField();
+
+  window.addEventListener('resize', onResize);
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+
+  animate();
+}
+
+// ===================== LIGHTING =====================
+function createLights() {
+  const ambient = new THREE.AmbientLight(0x90b8d0, 0.5);
+  scene.add(ambient);
+
+  const sun = new THREE.DirectionalLight(0xfff4e0, 1.3);
+  sun.position.set(100, 200, 80);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -150;
+  sun.shadow.camera.right = 150;
+  sun.shadow.camera.top = 150;
+  sun.shadow.camera.bottom = -150;
+  sun.shadow.camera.near = 10;
+  sun.shadow.camera.far = 500;
+  sun.shadow.bias = -0.0005;
+  scene.add(sun);
+
+  const hemi = new THREE.HemisphereLight(0x87CEEB, 0x4a6a2a, 0.4);
+  scene.add(hemi);
+}
+
+// ===================== SKY =====================
+function createSky() {
+  // Gradient sky dome
+  const skyGeo = new THREE.SphereGeometry(800, 32, 16);
+  const skyMat = new THREE.ShaderMaterial({
+    uniforms: {
+      topColor: { value: new THREE.Color(0x2a6fc4) },
+      bottomColor: { value: new THREE.Color(0xb8d4f0) },
+      offset: { value: 33 },
+      exponent: { value: 0.6 }
+    },
+    vertexShader: `
+      varying vec3 vWorldPos;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 topColor;
+      uniform vec3 bottomColor;
+      uniform float offset;
+      uniform float exponent;
+      varying vec3 vWorldPos;
+      void main() {
+        float h = normalize(vWorldPos + offset).y;
+        gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+      }
+    `,
+    side: THREE.BackSide
+  });
+  const sky = new THREE.Mesh(skyGeo, skyMat);
+  scene.add(sky);
+
+  // Clouds
+  const cloudMat = new THREE.MeshLambertMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.75,
+    fog: false
+  });
+  for (let i = 0; i < 25; i++) {
+    const cloudGroup = new THREE.Group();
+    const numPuffs = 3 + Math.floor(Math.random() * 4);
+    for (let j = 0; j < numPuffs; j++) {
+      const r = 8 + Math.random() * 12;
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), cloudMat);
+      puff.position.set(
+        (Math.random() - 0.5) * 40,
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 40
+      );
+      cloudGroup.add(puff);
+    }
+    cloudGroup.position.set(
+      (Math.random() - 0.5) * WORLD_SIZE * 1.5,
+      120 + Math.random() * 80,
+      (Math.random() - 0.5) * WORLD_SIZE * 1.5
+    );
+    cloudGroup.scale.setScalar(0.8 + Math.random() * 0.8);
+    scene.add(cloudGroup);
+  }
+}
+
+// ===================== TERRAIN =====================
+function createTerrain() {
+  const segs = 128;
+  const geo = new THREE.PlaneGeometry(WORLD_SIZE * 1.5, WORLD_SIZE * 1.5, segs, segs);
+  geo.rotateX(-Math.PI / 2);
+
+  // Gentle rolling hills
+  const pos = geo.attributes.position;
+  const colors = [];
+  const color = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const h = Math.sin(x * 0.015) * Math.cos(z * 0.015) * 6
+            + Math.sin(x * 0.04) * Math.cos(z * 0.03) * 2.5
+            + Math.sin(x * 0.08 + z * 0.06) * 1.2;
+    pos.setY(i, h);
+
+    // Color based on field pattern
+    const fieldX = Math.floor((x + WORLD_SIZE * 0.75) / 30);
+    const fieldZ = Math.floor((z + WORLD_SIZE * 0.75) / 30);
+    const fieldSeed = (fieldX * 7 + fieldZ * 13) % 6;
+
+    const distFromCenter = Math.sqrt(x * x + z * z);
+    if (distFromCenter < 40) {
+      color.setHex(0x6b8f3a); // farmyard grass
+    } else {
+      switch (fieldSeed) {
+        case 0: color.setHex(0x7a9e3e); break; // wheat
+        case 1: color.setHex(0x8b7d3a); break; // corn
+        case 2: color.setHex(0x5d8a3a); break; // soy
+        case 3: color.setHex(0x9e8b3e); break; // hay
+        case 4: color.setHex(0x6b8f3a); break; // grass
+        case 5: color.setHex(0x8a6b3a); break; // tilled
+      }
+      // Add some variation
+      const v = 0.85 + Math.random() * 0.3;
+      color.multiplyScalar(v);
+    }
+    colors.push(color.r, color.g, color.b);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  terrain = new THREE.Mesh(geo, mat);
+  terrain.receiveShadow = true;
+  scene.add(terrain);
+
+  // Get terrain height function
+  window.getTerrainHeight = function(x, z) {
+    return Math.sin(x * 0.015) * Math.cos(z * 0.015) * 6
+         + Math.sin(x * 0.04) * Math.cos(z * 0.03) * 2.5
+         + Math.sin(x * 0.08 + z * 0.06) * 1.2;
+  };
+}
+
+// ===================== FARMS =====================
+function createFarms() {
+  // Main farm complex near center
+  createBarn(-20, -15, 0);
+  createSilo(-32, -12, 0);
+  createFarmhouse(15, -20, Math.PI);
+  createFence(-40, -30, 50, 30);
+
+  // Scattered farms
+  createBarn(120, 80, Math.PI / 4);
+  createSilo(108, 85, 0);
+  createFarmhouse(140, 65, -Math.PI / 3);
+  createFence(95, 55, 60, 40);
+
+  createBarn(-130, 100, Math.PI / 6);
+  createSilo(-142, 95, 0);
+  createFarmhouse(-110, 115, Math.PI / 2);
+  createFence(-155, 80, 60, 45);
+
+  createBarn(80, -140, -Math.PI / 4);
+  createSilo(68, -135, 0);
+  createFarmhouse(100, -120, Math.PI / 5);
+  createFence(55, -160, 60, 45);
+
+  createBarn(-100, -120, Math.PI / 3);
+  createSilo(-112, -115, 0);
+  createFarmhouse(-80, -135, -Math.PI / 4);
+  createFence(-125, -155, 60, 45);
+
+  // A pond
+  createPond(200, -50);
+  createPond(-180, 30);
+}
+
+function createBarn(x, z, rot) {
+  const group = new THREE.Group();
+
+  // Main body
+  const bodyGeo = new THREE.BoxGeometry(16, 10, 12);
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0x8B3a2a });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 5;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  // Roof - triangular prism
+  const roofGeo = new THREE.CylinderGeometry(8.5, 8.5, 16, 3, 1, false, 0, Math.PI * 2);
+  // Use a custom roof shape
+  const roofShape = new THREE.Shape();
+  roofShape.moveTo(-8, 0);
+  roofShape.lineTo(8, 0);
+  roofShape.lineTo(0, 5);
+  roofShape.lineTo(-8, 0);
+  const extrudeSettings = { depth: 12, bevelEnabled: false };
+  const roofGeo2 = new THREE.ExtrudeGeometry(roofShape, extrudeSettings);
+  roofGeo2.rotateY(Math.PI / 2);
+  roofGeo2.translate(0, 10, 0);
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0x5a2a1a });
+  const roof = new THREE.Mesh(roofGeo2, roofMat);
+  roof.castShadow = true;
+  group.add(roof);
+
+  // Door
+  const doorGeo = new THREE.PlaneGeometry(4, 6);
+  const doorMat = new THREE.MeshLambertMaterial({ color: 0x3a2010 });
+  const door = new THREE.Mesh(doorGeo, doorMat);
+  door.position.set(0, 3, 6.01);
+  group.add(door);
+
+  // White trim
+  const trimGeo = new THREE.BoxGeometry(16.2, 0.6, 0.3);
+  const trimMat = new THREE.MeshLambertMaterial({ color: 0xdddddd });
+  const trim = new THREE.Mesh(trimGeo, trimMat);
+  trim.position.set(0, 1, 6.05);
+  group.add(trim);
+
+  group.position.set(x, window.getTerrainHeight(x, z), z);
+  group.rotation.y = rot;
+  scene.add(group);
+  collidables.push({ mesh: group, radius: 12, height: 15, pos: new THREE.Vector3(x, window.getTerrainHeight(x, z), z) });
+}
+
+function createSilo(x, z, rot) {
+  const group = new THREE.Group();
+
+  const siloGeo = new THREE.CylinderGeometry(4, 4, 18, 16);
+  const siloMat = new THREE.MeshLambertMaterial({ color: 0xb0b8b0 });
+  const silo = new THREE.Mesh(siloGeo, siloMat);
+  silo.position.y = 9;
+  silo.castShadow = true;
+  group.add(silo);
+
+  // Dome top
+  const domeGeo = new THREE.SphereGeometry(4, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+  const domeMat = new THREE.MeshLambertMaterial({ color:0x909a90 });
+  const dome = new THREE.Mesh(domeGeo, domeMat);
+  dome.position.y = 18;
+  dome.castShadow = true;
+  group.add(dome);
+
+  group.position.set(x, window.getTerrainHeight(x, z), z);
+  group.rotation.y = rot;
+  scene.add(group);
+  collidables.push({ mesh: group, radius: 5, height: 20, pos: new THREE.Vector3(x, window.getTerrainHeight(x, z), z) });
+}
+
+function createFarmhouse(x, z, rot) {
+  const group = new THREE.Group();
+
+  // Body
+  const bodyGeo = new THREE.BoxGeometry(10, 6, 8);
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0xe0d8c0 });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 3;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  // Roof
+  const roofShape = new THREE.Shape();
+  roofShape.moveTo(-5.5, 0);
+  roofShape.lineTo(5.5, 0);
+  roofShape.lineTo(0, 3.5);
+  roofShape.lineTo(-5.5, 0);
+  const roofGeo = new THREE.ExtrudeGeometry(roofShape, { depth: 8, bevelEnabled: false });
+  roofGeo.rotateY(Math.PI / 2);
+  roofGeo.translate(0, 6, 0);
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0x6a3a2a });
+  const roof = new THREE.Mesh(roofGeo, roofMat);
+  roof.castShadow = true;
+  group.add(roof);
+
+  // Chimney
+  const chimGeo = new THREE.BoxGeometry(1, 3, 1);
+  const chimMat = new THREE.MeshLambertMaterial({ color: 0x8a4a3a });
+  const chim = new THREE.Mesh(chimGeo, chimMat);
+  chim.position.set(3, 8, 0);
+  chim.castShadow = true;
+  group.add(chim);
+
+  // Windows
+  const winMat = new THREE.MeshLambertMaterial({ color: 0x88ccff, emissive: 0x223344 });
+  for (let i = -1; i <= 1; i += 2) {
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), winMat);
+    win.position.set(i * 2.5, 3.5, 4.01);
+    group.add(win);
+  }
+
+  group.position.set(x, window.getTerrainHeight(x, z), z);
+  group.rotation.y = rot;
+  scene.add(group);
+  collidables.push({ mesh: group, radius: 7, height: 10, pos: new THREE.Vector3(x, window.getTerrainHeight(x, z), z) });
+}
+
+function createFence(x, z, w, d) {
+  const postMat = new THREE.MeshLambertMaterial({ color: 0x8a7a5a });
+  const railMat = new THREE.MeshLambertMaterial({ color: 0x9a8a6a });
+  const postSpacing = 5;
+  const groundY = window.getTerrainHeight(x, z);
+
+  // Along X edges
+  for (let edge = 0; edge < 2; edge++) {
+    const ez = z + (edge === 0 ? -d/2 : d/2);
+    for (let px = x - w/2; px <= x + w/2; px += postSpacing) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2, 0.2), postMat);
+      post.position.set(px, window.getTerrainHeight(px, ez) + 1, ez);
+      post.castShadow = true;
+      scene.add(post);
+    }
+    for (const ry of [0.8, 1.5]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, 0.08), railMat);
+      rail.position.set(x, window.getTerrainHeight(x, ez) + ry, ez);
+      scene.add(rail);
+    }
+  }
+  // Along Z edges
+  for (let edge = 0; edge < 2; edge++) {
+    const ex = x + (edge === 0 ? -w/2 : w/2);
+    for (let pz = z - d/2; pz <= z + d/2; pz += postSpacing) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2, 0.2), postMat);
+      post.position.set(ex, window.getTerrainHeight(ex, pz) + 1, pz);
+      post.castShadow = true;
+      scene.add(post);
+    }
+    for (const ry of [0.8, 1.5]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, d), railMat);
+      rail.position.set(ex, window.getTerrainHeight(ex, z) + ry, z);
+      scene.add(rail);
+    }
+  }
+}
+
+function createPond(x, z) {
+  const geo = new THREE.CircleGeometry(15, 32);
+  geo.rotateX(-Math.PI / 2);
+  const mat = new THREE.MeshLambertMaterial({
+    color: 0x2a6a9a,
+    transparent: true,
+    opacity: 0.8
+  });
+  const pond = new THREE.Mesh(geo, mat);
+  pond.position.set(x, window.getTerrainHeight(x, z) + 0.1, z);
+  scene.add(pond);
+
+  // Surrounding mud
+  const mudGeo = new THREE.RingGeometry(14, 18, 32);
+  mudGeo.rotateX(-Math.PI / 2);
+  const mudMat = new THREE.MeshLambertMaterial({ color: 0x5a4a3a });
+  const mud = new THREE.Mesh(mudGeo, mudMat);
+  mud.position.set(x, window.getTerrainHeight(x, z) + 0.05, z);
+  scene.add(mud);
+}
+
+// ===================== VEGETATION =====================
+function createVegetation() {
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5a3a2a });
+  const leafMats = [
+    new THREE.MeshLambertMaterial({ color: 0x3a6a2a }),
+    new THREE.MeshLambertMaterial({ color: 0x4a7a3a }),
+    new THREE.MeshLambertMaterial({ color: 0x2a5a2a }),
+    new THREE.MeshLambertMaterial({ color: 0x5a8a3a }),
+  ];
+
+  // Trees
+  for (let i = 0; i < 120; i++) {
+    const x = (Math.random() - 0.5) * WORLD_SIZE * 1.3;
+    const z = (Math.random() - 0.5) * WORLD_SIZE * 1.3;
+    const dist = Math.sqrt(x*x + z*z);
+    if (dist < 50) continue; // keep center clear
+
+    const tree = new THREE.Group();
+    const h = 4 + Math.random() * 4;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, h, 6), trunkMat);
+    trunk.position.y = h / 2;
+    trunk.castShadow = true;
+    tree.add(trunk);
+
+    const numC = 2 + Math.floor(Math.random() * 3);
+    for (let j = 0; j < numC; j++) {
+      const r = 2 + Math.random() * 2;
+      const crown = new THREE.Mesh(
+        new THREE.SphereGeometry(r, 8, 6),
+        leafMats[Math.floor(Math.random() * leafMats.length)]
+      );
+      crown.position.y = h + j * 1.5;
+      crown.position.x = (Math.random() - 0.5) * 1;
+      crown.position.z = (Math.random() - 0.5) * 1;
+      crown.castShadow = true;
+      tree.add(crown);
+    }
+
+    tree.position.set(x, window.getTerrainHeight(x, z), z);
+    tree.scale.setScalar(0.8 + Math.random() * 0.6);
+    scene.add(tree);
+
+    if (dist < 200) {
+      collidables.push({ mesh: tree, radius: 2, height: h * 1.5, pos: new THREE.Vector3(x, window.getTerrainHeight(x, z), z) });
+    }
+  }
+
+  // Hay bales
+  for (let i = 0; i < 30; i++) {
+    const x = (Math.random() - 0.5) * WORLD_SIZE * 1.2;
+    const z = (Math.random() - 0.5) * WORLD_SIZE * 1.2;
+    const dist = Math.sqrt(x*x + z*z);
+    if (dist < 45) continue;
+
+    const bale = new THREE.Mesh(
+      new THREE.CylinderGeometry(2, 2, 3, 12),
+      new THREE.MeshLambertMaterial({ color: 0xc8a838 })
+    );
+    bale.rotation.z = Math.PI / 2;
+    bale.position.set(x, window.getTerrainHeight(x, z) + 1.5, z);
+    bale.rotation.x = Math.random() * Math.PI;
+    bale.castShadow = true;
+    bale.receiveShadow = true;
+    scene.add(bale);
+
+    if (dist < 200) {
+      collidables.push({ mesh: bale, radius: 2.5, height: 3, pos: new THREE.Vector3(x, window.getTerrainHeight(x, z) + 1.5, z) });
+    }
+  }
+
+  // Crop rows - instanced lines of crops
+  const cropMat = new THREE.MeshLambertMaterial({ color: 0x6a8a2a });
+  for (let f = 0; f < 8; f++) {
+    const fx = (Math.random() - 0.5) * WORLD_SIZE;
+    const fz = (Math.random() - 0.5) * WORLD_SIZE;
+    const dist = Math.sqrt(fx*fx + fz*fz);
+    if (dist < 55) continue;
+
+    const rows = 5 + Math.floor(Math.random() * 4);
+    for (let r = 0; r < rows; r++) {
+      const rowZ = fz + r * 3 - rows * 1.5;
+      for (let c = 0; c < 15; c++) {
+        const cx = fx + c * 2 - 15;
+        const cropH = 0.6 + Math.random() * 0.4;
+        const crop = new THREE.Mesh(
+          new THREE.ConeGeometry(0.3, cropH, 4),
+          cropMat
+        );
+        crop.position.set(cx, window.getTerrainHeight(cx, rowZ) + cropH/2, rowZ);
+        scene.add(crop);
+      }
+    }
+  }
+
+  // Wind turbine
+  createWindTurbine(60, 60);
+  createWindTurbine(-80, -40);
+  createWindTurbine(150, -100);
+}
+
+function createWindTurbine(x, z) {
+  const group = new THREE.Group();
+
+  // Tower
+  const tower = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.8, 1.5, 35, 8),
+    new THREE.MeshLambertMaterial({ color: 0xeeeeec })
+  );
+  tower.position.y = 17.5;
+  tower.castShadow = true;
+  group.add(tower);
+
+  // Nacelle
+  const nacelle = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 2, 4),
+    new THREE.MeshLambertMaterial({ color: 0xdddddd })
+  );
+  nacelle.position.y = 35;
+  group.add(nacelle);
+
+  // Blades
+  const bladeMat = new THREE.MeshLambertMaterial({ color: 0xf8f8f8 });
+  const bladeGroup = new THREE.Group();
+  for (let i = 0; i < 3; i++) {
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.4, 14, 0.3),
+      bladeMat
+    );
+    blade.position.y = 7;
+    blade.geometry.translate(0, 7, 0);
+    blade.position.y = 0;
+    const bladeWrap = new THREE.Group();
+    bladeWrap.add(blade);
+    bladeWrap.rotation.z = (i * Math.PI * 2) / 3;
+    bladeGroup.add(bladeWrap);
+  }
+  bladeGroup.position.set(0, 35, 2.5);
+  bladeGroup.userData.isTurbine = true;
+  group.add(bladeGroup);
+  group.userData.turbineBlades = bladeGroup;
+
+  group.position.set(x, window.getTerrainHeight(x, z), z);
+  scene.add(group);
+  collidables.push({ mesh: group, radius: 3, height: 37, pos: new THREE.Vector3(x, window.getTerrainHeight(x, z), z) });
+
+  // Store for animation
+  if (!window.turbines) window.turbines = [];
+  window.turbines.push(bladeGroup);
+}
+
+// ===================== ROADS =====================
+function createRoads() {
+  const roadMat = new THREE.MeshLambertMaterial({ color: 0x6a6a6a });
+  const roadGeo = new THREE.PlaneGeometry(8, WORLD_SIZE * 1.5);
+  roadGeo.rotateX(-Math.PI / 2);
+
+  // North-South road
+  const road1 = new THREE.Mesh(roadGeo, roadMat);
+  road1.position.set(0, 0.15, 0);
+  scene.add(road1);
+
+  // East-West road
+  const road2 = new THREE.Mesh(roadGeo, roadMat);
+  road2.rotation.y = Math.PI / 2;
+  road2.position.set(0, 0.15, 0);
+  scene.add(road2);
+
+  // Diagonal road
+  const road3 = new THREE.Mesh(new THREE.PlaneGeometry(6, WORLD_SIZE * 1.5), roadMat);
+  road3.geometry.rotateX(-Math.PI / 2);
+  road3.position.set(0, 0.15, 0);
+  road3.rotation.y = Math.PI / 4;
+  scene.add(road3);
+
+  // Yellow line markings
+  const lineMat = new THREE.MeshLambertMaterial({ color: 0xddcc44 });
+  for (let i = -WORLD_SIZE; i < WORLD_SIZE; i += 20) {
+    const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 4), lineMat);
+    dash.geometry.rotateX(-Math.PI / 2);
+    dash.position.set(0, 0.2, i);
+    scene.add(dash);
+
+    const dash2 = new THREE.Mesh(new THREE.PlaneGeometry(4, 0.3), lineMat);
+    dash2.geometry.rotateX(-Math.PI / 2);
+    dash2.position.set(i, 0.2, 0);
+    scene.add(dash2);
+  }
+}
+
+// ===================== DRONE =====================
+function createDrone() {
+  droneGroup = new THREE.Group();
+
+  // Central body
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.4, 1.2), bodyMat);
+  body.castShadow = true;
+  droneGroup.add(body);
+
+  // Top dome
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.35, 12, 8, 0, Math.PI*2, 0, Math.PI/2),
+    new THREE.MeshLambertMaterial({ color: 0x1a1a1a })
+  );
+  dome.position.y = 0.2;
+  droneGroup.add(dome);
+
+  // Arms (X configuration)
+  const armMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+  const armPositions = [
+    { x: 1, z: 1 }, { x: -1, z: 1 }, { x: 1, z: -1 }, { x: -1, z: -1 }
+  ];
+
+  armPositions.forEach((ap, i) => {
+    // Arm
+    const armLen = Math.sqrt(ap.x*ap.x + ap.z*ap.z);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, armLen), armMat);
+    arm.position.set(ap.x/2, 0, ap.z/2);
+    arm.lookAt(ap.x, 0, ap.z);
+    arm.castShadow = true;
+    droneGroup.add(arm);
+
+    // Motor
+    const motor = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.15, 0.2, 12),
+      new THREE.MeshLambertMaterial({ color: 0x1a1a1a })
+    );
+    motor.position.set(ap.x, 0.15, ap.z);
+    motor.castShadow = true;
+    droneGroup.add(motor);
+
+    // Propeller
+    const propGroup = new THREE.Group();
+    const propMat = new THREE.MeshLambertMaterial({
+      color: 0x555555,
+      transparent: true,
+      opacity: 0.6
+    });
+    for (let b = 0; b < 2; b++) {
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.02, 0.08), propMat);
+      blade.position.x = 0;
+      blade.rotation.y = (b * Math.PI) / 2;
+      propGroup.add(blade);
+    }
+    // Prop disk (faint circle when spinning)
+    const disk = new THREE.Mesh(
+      new THREE.CircleGeometry(0.4, 16),
+      new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.08, side: THREE.DoubleSide })
+    );
+    disk.rotation.x = -Math.PI / 2;
+    disk.position.y = -0.01;
+    propGroup.add(disk);
+
+    propGroup.position.set(ap.x, 0.28, ap.z);
+    propGroup.userData.spinSpeed = 0;
+    propGroup.userData.isProp = true;
+    droneGroup.add(propGroup);
+    propellers.push(propGroup);
+
+    // Landing gear
+    const gear = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.25, 0.06),
+      new THREE.MeshLambertMaterial({ color: 0x222222 })
+    );
+    gear.position.set(ap.x * 0.7, -0.2, ap.z * 0.7);
+    droneGroup.add(gear);
+  });
+
+  // LED strip
+  const ledFront = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.05, 0.1),
+    new THREE.MeshLambertMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.8 })
+  );
+  ledFront.position.set(0, 0, 0.6);
+  droneGroup.add(ledFront);
+
+  const ledBack = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.05, 0.1),
+    new THREE.MeshLambertMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.8 })
+  );
+  ledBack.position.set(0, 0, -0.6);
+  droneGroup.add(ledBack);
+
+  // FPV camera marker (front)
+  const fpvCam = new THREE.Object3D();
+  fpvCam.position.set(0, 0.15, 0.65);
+  fpvCam.name = 'fpvCam';
+  droneGroup.add(fpvCam);
+
+  droneGroup.position.copy(droneState.position);
+  scene.add(droneGroup);
+  drone = droneGroup;
+}
+
+// ===================== PARTICLES (prop wash) =====================
+function createParticleField() {
+  // We'll use a pool of small planes
+  for (let i = 0; i < 60; i++) {
+    const p = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.3, 0.3),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false })
+    );
+    p.userData.life = 0;
+    p.userData.maxLife = 1;
+    p.userData.velocity = new THREE.Vector3();
+    scene.add(p);
+    particles.push(p);
+  }
+}
+
+let particleIdx = 0;
+function spawnParticle(pos) {
+  const p = particles[particleIdx];
+  particleIdx = (particleIdx + 1) % particles.length;
+  p.position.copy(pos);
+  p.position.y -= 0.3;
+  p.position.x += (Math.random() - 0.5) * 0.5;
+  p.position.z += (Math.random() - 0.5) * 0.5;
+  p.userData.velocity.set(
+    (Math.random() - 0.5) * 2,
+    -2 - Math.random() * 3,
+    (Math.random() - 0.5) * 2
+  );
+  p.userData.life = 0;
+  p.userData.maxLife = 0.5 + Math.random() * 0.3;
+  p.material.opacity = 0.5;
+  p.scale.setScalar(0.5 + Math.random() * 0.5);
+  p.lookAt(camera.position);
+}
+
+function updateParticles(dt) {
+  particles.forEach(p => {
+    if (p.userData.life >= p.userData.maxLife) return;
+    p.userData.life += dt;
+    p.position.addScaledVector(p.userData.velocity, dt);
+    p.userData.velocity.multiplyScalar(0.95);
+    const t = p.userData.life / p.userData.maxLife;
+    p.material.opacity = 0.5 * (1 - t);
+    p.scale.setScalar((0.5 + (1 - t) * 0.5));
+    p.lookAt(camera.position);
+  });
+}
+
+// ===================== INPUT =====================
+function onKeyDown(e) {
+  keys[e.code] = true;
+  if (e.code === 'KeyV' && started && !crashed) {
+    cameraMode = (cameraMode + 1) % 3;
+  }
+  if (e.code === 'KeyR' && started) {
+    resetDrone();
+  }
+  // Prevent default for game keys
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','ShiftLeft','ShiftRight','ControlLeft','ControlRight'].includes(e.code)) {
+    e.preventDefault();
+  }
+}
+function onKeyUp(e) {
+  keys[e.code] = false;
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// ===================== FLIGHT PHYSICS =====================
+function updateDronePhysics(dt) {
+  if (crashed) return;
+
+  // === Input → desired angular changes ===
+  const pitchInput = (keys['ArrowUp'] ? 1 : 0) + (keys['ArrowDown'] ? -1 : 0); // nose down positive
+  const yawInput = (keys['ArrowLeft'] ? 1 : 0) + (keys['ArrowRight'] ? -1 : 0);
+  const rollInput = (keys['KeyQ'] ? 1 : 0) + (keys['KeyE'] ? -1 : 0);
+  const ascendInput = (keys['ShiftLeft'] || keys['ShiftRight']) ? 1 : 0;
+  const descendInput = (keys['ControlLeft'] || keys['ControlRight']) ? 1 : 0;
+  const forwardInput = (keys['KeyW'] ? 1 : 0) + (keys['KeyS'] ? -1 : 0);
+  const strafeInput = (keys['KeyA'] ? -1 : 0) + (keys['KeyD'] ? 1 : 0);
+
+  // Throttle control
+  const throttleTarget = ascendInput * 1.0 - descendInput * 0.6 + 0.5; // hover at 0.5
+  droneState.throttle += (throttleTarget - droneState.throttle) * Math.min(1, dt * 4);
+
+  // Thrust = throttle * maxThrust, always along local up
+  const thrustForce = droneState.throttle * MAX_THRUST;
+
+  // Apply rotation inputs (angular velocity smoothing)
+  const rotSpeed = 2.5;
+  const rotDamp = 3.0;
+
+  // Pitch (X rotation - nose up/down)
+  droneState.angularVel.x += pitchInput * rotSpeed * dt;
+  // Roll (Z rotation)
+  droneState.angularVel.z += rollInput * rotSpeed * dt;
+  // Yaw (Y rotation)
+  droneState.angularVel.y += yawInput * rotSpeed * 1.5 * dt;
+
+  // Damping - return to level when no input
+  droneState.angularVel.x *= Math.max(0, 1 - rotDamp * dt);
+  droneState.angularVel.z *= Math.max(0, 1 - rotDamp * dt);
+  droneState.angularVel.y *= Math.max(0, 1 - rotDamp * 0.5 * dt);
+
+  // Clamp angles
+  droneState.rotation.x += droneState.angularVel.x * dt;
+  droneState.rotation.z += droneState.angularVel.z * dt;
+  droneState.rotation.y += droneState.angularVel.y * dt;
+
+  // Limit pitch and roll
+  const maxAngle = Math.PI / 4; // 45 degrees
+  droneState.rotation.x = THREE.MathUtils.clamp(droneState.rotation.x, -maxAngle, maxAngle);
+  droneState.rotation.z = THREE.MathUtils.clamp(droneState.rotation.z, -maxAngle, maxAngle);
+
+  // Auto-level when no pitch/roll input
+  if (pitchInput === 0) {
+    droneState.rotation.x *= Math.max(0, 1 - 2 * dt);
+    droneState.angularVel.x *= Math.max(0, 1 - 4 * dt);
+  }
+  if (rollInput === 0) {
+    droneState.rotation.z *= Math.max(0, 1 - 2 * dt);
+    droneState.angularVel.z *= Math.max(0, 1 - 4 * dt);
+  }
+
+  // === Forces ===
+  // Gravity
+  const gravityForce = -GRAVITY * DRONE_MASS;
+
+  // Thrust in local up direction
+  const localUp = new THREE.Vector3(0, 1, 0);
+  localUp.applyEuler(droneState.rotation);
+  const thrustVec = localUp.multiplyScalar(thrustForce);
+
+  // Forward/strafe input adds horizontal velocity in drone's facing direction
+  const forward = new THREE.Vector3(0, 0, -1);
+  forward.applyEuler(new THREE.Euler(0, droneState.rotation.y, 0));
+  const right = new THREE.Vector3(1, 0, 0);
+  right.applyEuler(new THREE.Euler(0, droneState.rotation.y, 0));
+
+  // Combined acceleration
+  const accel = new THREE.Vector3();
+  accel.y += gravityForce / DRONE_MASS;
+  accel.addScaledVector(thrustVec, 1 / DRONE_MASS);
+
+  // Movement input (W/S/A/D) - direct velocity influence
+  const moveForce = 20;
+  accel.addScaledVector(forward, forwardInput * moveForce / DRONE_MASS);
+  accel.addScaledVector(right, strafeInput * moveForce / DRONE_MASS);
+
+  // Tilt-based acceleration (when pitched forward, thrust pushes forward)
+  // Already handled by thrust being along local up
+
+  // Air resistance
+  const drag = 0.4;
+  accel.addScaledVector(droneState.velocity, -drag);
+
+  // Apply acceleration
+  droneState.velocity.addScaledVector(accel, dt);
+
+  // Velocity caps
+  const maxSpeed = 35;
+  if (droneState.velocity.length() > maxSpeed) {
+    droneState.velocity.normalize().multiplyScalar(maxSpeed);
+  }
+
+  // Update position
+  droneState.position.addScaledVector(droneState.velocity, dt);
+
+  // === Collision with terrain ===
+  const terrainH = window.getTerrainHeight(droneState.position.x, droneState.position.z);
+  const droneBottom = droneState.position.y - 0.3;
+
+  if (droneBottom <= terrainH) {
+    const impactSpeed = Math.abs(droneState.velocity.y);
+    if (impactSpeed > 12 || droneState.velocity.length() > 25) {
+      // Crash!
+      crashDrone();
+      return;
+    }
+    // Soft landing / ground contact
+    droneState.position.y = terrainH + 0.3;
+    droneState.velocity.y = Math.max(0, droneState.velocity.y);
+    // Ground friction
+    droneState.velocity.x *= 0.85;
+    droneState.velocity.z *= 0.85;
+    // Level out on ground
+    droneState.rotation.x *= 0.8;
+    droneState.rotation.z *= 0.8;
+  }
+
+  // === Collision with buildings ===
+  for (const col of collidables) {
+    const dx = droneState.position.x - col.pos.x;
+    const dz = droneState.position.z - col.pos.z;
+    const distXZ = Math.sqrt(dx * dx + dz * dz);
+    const droneY = droneState.position.y;
+    const colBottom = col.pos.y;
+    const colTop = col.pos.y + col.height;
+
+    if (distXZ < col.radius + 0.5 && droneY > colBottom - 0.5 && droneY < colTop + 0.5) {
+      // Push out
+      const pushDir = new THREE.Vector3(dx, 0, dz).normalize();
+      const overlap = col.radius + 0.5 - distXZ;
+      droneState.position.x += pushDir.x * overlap;
+      droneState.position.z += pushDir.z * overlap;
+      // Bounce velocity
+      const vDot = droneState.velocity.x * pushDir.x + droneState.velocity.z * pushDir.z;
+      if (vDot < 0) {
+        droneState.velocity.x -= 1.5 * vDot * pushDir.x;
+        droneState.velocity.z -= 1.5 * vDot * pushDir.z;
+      }
+      droneState.velocity.multiplyScalar(0.5);
+    }
+  }
+
+  // World bounds
+  const bound = WORLD_SIZE * 0.72;
+  if (Math.abs(droneState.position.x) > bound) {
+    droneState.position.x = Math.sign(droneState.position.x) * bound;
+    droneState.velocity.x *= -0.3;
+  }
+  if (Math.abs(droneState.position.z) > bound) {
+    droneState.position.z = Math.sign(droneState.position.z) * bound;
+    droneState.velocity.z *= -0.3;
+  }
+  // Altitude limit
+  if (droneState.position.y > 150) {
+    droneState.position.y = 150;
+    droneState.velocity.y = Math.min(0, droneState.velocity.y);
+  }
+
+  // Update drone mesh
+  droneGroup.position.copy(droneState.position);
+  droneGroup.rotation.copy(droneState.rotation);
+
+  // Propeller spin based on throttle
+  const spinSpeed = droneState.throttle * 60 + 10;
+  propellers.forEach((p, i) => {
+    p.rotation.y += spinSpeed * dt * (i % 2 === 0 ? 1 : -1);
+  });
+
+  // Spawn prop wash particles
+  if (droneState.throttle > 0.3 && Math.random() < droneState.throttle * 0.5) {
+    const propPos = propellers[Math.floor(Math.random() * 4)].getWorldPosition(new THREE.Vector3());
+    spawnParticle(propPos);
+  }
+
+  // Battery drain
+  const drain = (0.3 + droneState.throttle * 0.5 + droneState.velocity.length() * 0.02) * dt;
+  battery -= drain;
+  if (battery <= 0) {
+    battery = 0;
+    // Dead battery - reduce thrust
+    droneState.throttle *= 0.3;
+  }
+}
+
+function crashDrone() {
+  crashed = true;
+  document.getElementById('msgTitle').textContent = '💥 CRASH!';
+  document.getElementById('msgText').textContent = 'Your drone hit the ground too hard. Battery remaining: ' + Math.round(battery) + '%';
+  document.getElementById('messageOverlay').style.display = 'flex';
+}
+
+window.resetDrone = function() {
+  crashed = false;
+  droneState.position.set(0, 30, 40);
+  droneState.velocity.set(0, 0, 0);
+  droneState.rotation.set(0, 0, 0, 'YXZ');
+  droneState.angularVel.set(0, 0, 0);
+  droneState.throttle = 0;
+  droneGroup.position.copy(droneState.position);
+  droneGroup.rotation.copy(droneState.rotation);
+  document.getElementById('messageOverlay').style.display = 'none';
+};
+
+// ===================== CAMERA =====================
+function updateCamera(dt) {
+  if (crashed) return;
+
+  if (cameraMode === 0) {
+    // Chase camera
+    const offset = new THREE.Vector3(0, 4, 12);
+    offset.applyEuler(new THREE.Euler(0, droneState.rotation.y, 0));
+    const targetPos = droneState.position.clone().add(offset);
+    camera.position.lerp(targetPos, Math.min(1, dt * 5));
+    camera.lookAt(droneState.position.x, droneState.position.y + 1, droneState.position.z);
+  } else if (cameraMode === 1) {
+    // FPV camera
+    const fpv = droneGroup.getObjectByName('fpvCam');
+    const worldPos = new THREE.Vector3();
+    fpv.getWorldPosition(worldPos);
+    camera.position.copy(worldPos);
+    const lookTarget = new THREE.Vector3(0, 0, -10);
+    lookTarget.applyEuler(droneState.rotation);
+    lookTarget.add(worldPos);
+    camera.lookAt(lookTarget);
+  } else if (cameraMode === 2) {
+    // Orbit camera
+    orbitAngle += dt * 0.3;
+    const r = 15;
+    const targetPos = new THREE.Vector3(
+      droneState.position.x + Math.cos(orbitAngle) * r,
+      droneState.position.y + 5,
+      droneState.position.z + Math.sin(orbitAngle) * r
+    );
+    camera.position.lerp(targetPos, Math.min(1, dt * 3));
+    camera.lookAt(droneState.position);
+  }
+}
+
+// ===================== HUD UPDATE =====================
+function updateHUD() {
+  const speed = droneState.velocity.length();
+  const alt = droneState.position.y - window.getTerrainHeight(droneState.position.x, droneState.position.z);
+  const heading = ((-droneState.rotation.y * 180 / Math.PI) % 360 + 360) % 360;
+
+  document.getElementById('speedVal').textContent = Math.round(speed * 3.6); // m/s to km/h-ish
+  document.getElementById('altVal').textContent = Math.round(alt) + 'm';
+  document.getElementById('headingVal').textContent = Math.round(heading) + '°';
+
+  document.getElementById('throttleVal').textContent = Math.round(droneState.throttle * 100) + '%';
+  document.getElementById('pitchVal').textContent = Math.round(droneState.rotation.x * 180 / Math.PI) + '°';
+  document.getElementById('rollVal').textContent = Math.round(droneState.rotation.z * 180 / Math.PI) + '°';
+  document.getElementById('yawVal').textContent = Math.round(heading) + '°';
+  document.getElementById('vspeedVal').textContent = (droneState.velocity.y > 0 ? '+' : '') + droneState.velocity.y.toFixed(1);
+
+  // Battery
+  document.getElementById('batteryLevel').textContent = Math.round(battery) + '%';
+  const fillInner = document.getElementById('batteryFillInner');
+  fillInner.style.width = battery + '%';
+  if (battery > 50) fillInner.style.background = '#6f6';
+  else if (battery > 20) fillInner.style.background = '#fc6';
+  else fillInner.style.background = '#f66';
+
+  // Flight time
+  const elapsed = (Date.now() - flightStartTime) / 1000;
+  const mins = Math.floor(elapsed / 60);
+  const secs = Math.floor(elapsed % 60);
+  document.getElementById('timeVal').textContent = String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+
+  // Compass strip
+  updateCompass(heading);
+}
+
+function updateCompass(heading) {
+  const strip = document.getElementById('compassStrip');
+  const compassWidth = 180;
+  const pxPerDeg = 3;
+  const centerDeg = heading;
+  let html = '';
+  for (let d = Math.floor(centerDeg) - 40; d <= Math.floor(centerDeg) + 40; d++) {
+    let dd = ((d % 360) + 360) % 360;
+    let label = '';
+    if (dd === 0) label = 'N';
+    else if (dd === 90) label = 'E';
+    else if (dd === 180) label = 'S';
+    else if (dd === 270) label = 'W';
+    else if (dd % 30 === 0) label = dd + '';
+    else if (dd % 10 === 0) label = '|';
+    else label = '·';
+    html += `<span style="display:inline-block;width:${pxPerDeg}px;text-align:center;font-size:${label.length > 1 || label === '|' ? '10px' : '13px'};${label === '·' ? 'opacity:0.3' : ''}">${label}</span>`;
+  }
+  strip.innerHTML = html;
+  // Offset so current heading is centered
+  const offset = (centerDeg - Math.floor(centerDeg)) * pxPerDeg;
+  strip.style.left = (compassWidth/2 - 40 * pxPerDeg - offset) + 'px';
+}
+
+// ===================== MINIMAP =====================
+function updateMinimap() {
+  const ctx = minimapCtx;
+  const size = 180;
+  const range = 250;
+  const scale = size / (range * 2);
+
+  ctx.clearRect(0, 0, size, size);
+
+  // Background
+  ctx.fillStyle = '#2a4a1a';
+  ctx.fillRect(0, 0, size, size);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(100,255,100,0.1)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * size/4, 0); ctx.lineTo(i * size/4, size);
+    ctx.moveTo(0, i * size/4); ctx.lineTo(size, i * size/4);
+    ctx.stroke();
+  }
+
+  const cx = size / 2;
+  const cy = size / 2;
+
+  // Roads
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, cy); ctx.lineTo(size, cy);
+  ctx.moveTo(cx, 0); ctx.lineTo(cx, size);
+  ctx.stroke();
+
+  // Collidables
+  for (const col of collidables) {
+    const dx = col.pos.x - droneState.position.x;
+    const dz = col.pos.z - droneState.position.z;
+    if (Math.abs(dx) > range || Math.abs(dz) > range) continue;
+    const mx = cx + dx * scale;
+    const my = cy + dz * scale;
+    ctx.fillStyle = '#aa6';
+    ctx.beginPath();
+    ctx.arc(mx, my, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Drone (center) with heading
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-droneState.rotation.y);
+  ctx.fillStyle = '#6f6';
+  ctx.beginPath();
+  ctx.moveTo(0, -6);
+  ctx.lineTo(-4, 4);
+  ctx.lineTo(4, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Range circle
+  ctx.strokeStyle = 'rgba(100,255,100,0.2)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, size/2 - 2, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+// ===================== ANIMATION LOOP =====================
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (started) {
+    updateDronePhysics(dt);
+    updateCamera(dt);
+    updateParticles(dt);
+    updateHUD();
+    updateMinimap();
+
+    // Animate wind turbines
+    if (window.turbines) {
+      window.turbines.forEach(t => {
+        t.rotation.x += dt * 0.8;
+      });
+    }
+  } else {
+    // Slow orbit on start screen
+    const t = clock.getElapsedTime();
+    camera.position.set(Math.cos(t * 0.1) * 50, 35, Math.sin(t * 0.1) * 50);
+    camera.lookAt(0, 10, 0);
+  }
+
+  renderer.render(scene, camera);
+}
+
+// ===================== START =====================
+window.startGame = function() {
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  started = true;
+  flightStartTime = Date.now();
+  clock.getDelta(); // reset delta
+};
+
+// Initialize
+init();
+</script>
+</body>
+</html>
