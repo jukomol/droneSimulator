@@ -82,8 +82,8 @@ Toggle between three views with **V**:
 No build tools, no package manager, no server required.
 
 ### Option 1 — Direct
-1. Download `drone-simulator.html`
-2. Open it in any modern browser (Chrome, Firefox, Edge, Safari)
+1. Just open `https://jukomol.github.io/droneSimulator/`
+2. Read the instructions
 3. Click **START COMBAT**
 
 ### Option 2 — Local server (recommended for development)
