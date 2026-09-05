@@ -117,16 +117,34 @@
   }
   #startScreen h1 { font-size: 42px; margin-bottom: 8px; color: #6f6; text-shadow: 0 0 30px rgba(100,255,100,0.3); }
   #startScreen p { font-size: 16px; opacity: 0.7; margin-bottom: 30px; max-width: 520px; text-align: center; line-height: 1.6; }
-  #startBtn {
-    pointer-events: auto; cursor: pointer; background: rgba(100,255,100,0.15);
-    border: 2px solid #6f6; color: #6f6; font-size: 20px; padding: 14px 48px;
-    border-radius: 10px; transition: all 0.2s; font-weight: bold; letter-spacing: 2px;
-  }
-  #startBtn:hover { background: rgba(100,255,100,0.3); box-shadow: 0 0 30px rgba(100,255,100,0.4); }
   #controlsGrid {
     display: grid; grid-template-columns: auto auto; gap: 6px 16px; margin-bottom: 30px; font-size: 14px;
   }
   #controlsGrid .key { margin-right: 8px; }
+
+  /* Difficulty selector */
+  #difficultyLabel { font-size: 12px; opacity: 0.6; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; }
+  #difficultyGrid {
+    display: flex; gap: 14px; margin-bottom: 30px;
+  }
+  .diffBtn {
+    pointer-events: auto; cursor: pointer; background: rgba(255,255,255,0.05);
+    border: 2px solid var(--dc); color: var(--dc); font-size: 15px; padding: 12px 22px;
+    border-radius: 10px; transition: all 0.2s; font-weight: bold; letter-spacing: 1px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 110px;
+  }
+  .diffBtn .sub { font-size: 10px; opacity: 0.6; font-weight: normal; letter-spacing: 0; text-transform: none; }
+  .diffBtn:hover { background: var(--dc); color: #0a1a0a; box-shadow: 0 0 24px var(--dc); }
+  .diffBtn.easy { --dc: #6f6; }
+  .diffBtn.medium { --dc: #fc6; }
+  .diffBtn.hard { --dc: #f96; }
+  .diffBtn.impossible { --dc: #f44; }
+
+  #difficultyBadge {
+    position: absolute; top: 94px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; letter-spacing: 2px; font-weight: bold; padding: 3px 12px;
+    border-radius: 6px; background: rgba(10,20,10,0.55); border: 1px solid currentColor;
+  }
 
   /* Crash / message overlay */
   #messageOverlay {
@@ -199,7 +217,13 @@
     <div><span class="key">V</span></div><div>Toggle camera view</div>
     <div><span class="key">R</span></div><div>Full reset</div>
   </div>
-  <button id="startBtn" onclick="startGame()">START COMBAT</button>
+  <div id="difficultyLabel">Select Difficulty</div>
+  <div id="difficultyGrid">
+    <button class="diffBtn easy" onclick="startGame('easy')">EASY<span class="sub">6 UAVs · tougher drone</span></button>
+    <button class="diffBtn medium" onclick="startGame('medium')">MEDIUM<span class="sub">10 UAVs · balanced</span></button>
+    <button class="diffBtn hard" onclick="startGame('hard')">HARD<span class="sub">14 UAVs · fast &amp; sharp</span></button>
+    <button class="diffBtn impossible" onclick="startGame('impossible')">IMPOSSIBLE<span class="sub">18 UAVs · no mercy</span></button>
+  </div>
 </div>
 
 <!-- HUD -->
@@ -213,6 +237,7 @@
     <div class="stat"><div class="label">Accuracy</div><div class="value" id="accVal">0%</div></div>
   </div>
 
+  <div id="difficultyBadge">MEDIUM</div>
   <div id="compass"><div id="compassCenter"></div><div id="compassStrip"></div></div>
 
   <div id="crosshair">
@@ -267,7 +292,10 @@
   <div id="messageBox">
     <h2 id="msgTitle">CRASH!</h2>
     <p id="msgText">Your drone hit the ground too hard.</p>
-    <button onclick="resetDrone()">RESPAWN</button>
+    <div style="display:flex; gap:12px; justify-content:center;">
+      <button onclick="resetDrone()">RESPAWN</button>
+      <button onclick="backToMenu()" style="border-color:#888; color:#ccc;">MAIN MENU</button>
+    </div>
   </div>
 </div>
 
@@ -309,7 +337,61 @@ const FIRE_COOLDOWN = 0.12;
 const PROJECTILE_SPEED = 120;
 const PROJECTILE_LIFE = 2.5;
 const PROJECTILE_RADIUS = 0.25;
-const ENEMY_COUNT = 10;
+let ENEMY_COUNT = 10;
+
+// ===================== DIFFICULTY =====================
+const DIFFICULTIES = {
+  easy: {
+    label: 'EASY',
+    enemyCount: 6,
+    enemyHealth: 2,
+    speedMult: 0.7,
+    batteryMax: 700,
+    batteryDrainMult: 0.7,
+    autoAim: 0.55,
+    lockCone: Math.PI / 4,
+    crashImpactSpeed: 15,
+    crashVelLimit: 30,
+  },
+  medium: {
+    label: 'MEDIUM',
+    enemyCount: 10,
+    enemyHealth: 3,
+    speedMult: 1.0,
+    batteryMax: 500,
+    batteryDrainMult: 1.0,
+    autoAim: 0.35,
+    lockCone: Math.PI / 5,
+    crashImpactSpeed: 12,
+    crashVelLimit: 25,
+  },
+  hard: {
+    label: 'HARD',
+    enemyCount: 14,
+    enemyHealth: 4,
+    speedMult: 1.4,
+    batteryMax: 380,
+    batteryDrainMult: 1.3,
+    autoAim: 0.18,
+    lockCone: Math.PI / 7,
+    crashImpactSpeed: 10,
+    crashVelLimit: 22,
+  },
+  impossible: {
+    label: 'IMPOSSIBLE',
+    enemyCount: 18,
+    enemyHealth: 5,
+    speedMult: 1.9,
+    batteryMax: 260,
+    batteryDrainMult: 1.6,
+    autoAim: 0,
+    lockCone: Math.PI / 10,
+    crashImpactSpeed: 8,
+    crashVelLimit: 18,
+  },
+};
+let currentDifficulty = 'medium';
+function getDiff() { return DIFFICULTIES[currentDifficulty]; }
 
 // Altitude hold
 let altitudeHold = false;
@@ -322,7 +404,7 @@ let projPoolIdx = 0;
 let sharedProjGeo, sharedProjMat, sharedTrailGeo, sharedTrailMat;
 
 // Battery — much larger capacity for combat missions
-const BATTERY_MAX = 500;
+let BATTERY_MAX = 500;
 let battery = BATTERY_MAX;
 
 // Drone state
@@ -850,6 +932,23 @@ function createEnemies() {
   }
 }
 
+function clearEnemies() {
+  enemies.forEach(e => scene.remove(e.mesh));
+  enemies.length = 0;
+}
+
+// Applies the chosen difficulty's settings and rebuilds the enemy roster to match.
+function setDifficulty(diffKey) {
+  currentDifficulty = DIFFICULTIES[diffKey] ? diffKey : 'medium';
+  const d = getDiff();
+  ENEMY_COUNT = d.enemyCount;
+  BATTERY_MAX = d.batteryMax;
+  clearEnemies();
+  createEnemies();
+  battery = BATTERY_MAX;
+  document.getElementById('difficultyBadge').textContent = d.label;
+}
+
 function createEnemyDrone(index) {
   const group = new THREE.Group();
 
@@ -928,19 +1027,19 @@ function createEnemyDrone(index) {
     props: enemyProps,
     pos: new THREE.Vector3(spawnX, baseHeight, spawnZ),
     baseHeight: baseHeight,
-    health: 3,
-    maxHealth: 3,
+    health: getDiff().enemyHealth,
+    maxHealth: getDiff().enemyHealth,
     alive: true,
     respawnTimer: 0,
     // Patrol pattern
     pattern: index % 3, // 0 = circle, 1 = figure-8, 2 = zigzag
     patternAngle: Math.random() * Math.PI * 2,
-    patternSpeed: 0.3 + Math.random() * 0.3,
+    patternSpeed: (0.3 + Math.random() * 0.3) * getDiff().speedMult,
     patternRadius: 60 + Math.random() * 120,
     centerX: spawnX,
     centerZ: spawnZ,
     bobAmount: 2 + Math.random() * 4,
-    bobSpeed: 0.5 + Math.random() * 0.8,
+    bobSpeed: (0.5 + Math.random() * 0.8) * getDiff().speedMult,
     bobPhase: Math.random() * Math.PI * 2,
     healthBarBg: healthBarBg,
     healthBarFill: healthBarFill,
@@ -1059,14 +1158,14 @@ function tryShoot() {
   const shootDir = new THREE.Vector3(0, 0, -1);
   shootDir.applyEuler(droneState.rotation);
 
-  // Slight auto-aim toward locked target for better hit chance
-  if (lockedTarget) {
+  // Auto-aim toward locked target for better hit chance — strength varies by difficulty
+  const autoAim = getDiff().autoAim;
+  if (lockedTarget && autoAim > 0) {
     const toTarget = lockedTarget.pos.clone().sub(muzzlePos);
     const dist = toTarget.length();
     if (dist > 0.1) {
       toTarget.normalize();
-      // Blend 35% toward target direction — helps hits without being full auto-aim
-      shootDir.lerp(toTarget, 0.35).normalize();
+      shootDir.lerp(toTarget, autoAim).normalize();
     }
   }
 
@@ -1156,7 +1255,7 @@ function hitEnemy(enemy, hitPos) {
         document.getElementById('msgTitle').textContent = '🏆 MISSION COMPLETE!';
         document.getElementById('msgTitle').style.color = '#6f6';
         document.getElementById('msgText').innerHTML =
-          'All ' + ENEMY_COUNT + ' enemy UAVs destroyed!<br>' +
+          '[' + getDiff().label + '] All ' + ENEMY_COUNT + ' enemy UAVs destroyed!<br>' +
           'Kills: ' + killCount + ' | Hits: ' + hitCount + ' | Accuracy: ' + acc + '%<br>' +
           'Time: ' + String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0') + ' | Battery: ' + Math.round(battery/BATTERY_MAX*100) + '%';
         const btn = document.querySelector('#messageBox button');
@@ -1181,7 +1280,7 @@ function updateTargeting() {
   forward.applyEuler(droneState.rotation);
 
   let bestEnemy = null;
-  let bestAngle = Math.PI / 5; // ~36 degree cone
+  let bestAngle = getDiff().lockCone;
 
   for (const enemy of enemies) {
     if (!enemy.alive) continue;
@@ -1431,7 +1530,8 @@ function updateDronePhysics(dt) {
   const droneBottom = droneState.position.y - 0.3;
   if (droneBottom <= terrainH) {
     const impactSpeed = Math.abs(droneState.velocity.y);
-    if (impactSpeed > 12 || droneState.velocity.length() > 25) {
+    const d = getDiff();
+    if (impactSpeed > d.crashImpactSpeed || droneState.velocity.length() > d.crashVelLimit) {
       crashDrone();
       return;
     }
@@ -1491,8 +1591,8 @@ function updateDronePhysics(dt) {
     spawnParticle(propPos);
   }
 
-  // Battery drain — much slower for combat (BATTERY_MAX = 500)
-  const drain = (0.15 + droneState.throttle * 0.25 + droneState.velocity.length() * 0.01) * dt;
+  // Battery drain — scaled by difficulty
+  const drain = (0.15 + droneState.throttle * 0.25 + droneState.velocity.length() * 0.01) * dt * getDiff().batteryDrainMult;
   battery -= drain;
   if (battery <= 0) {
     battery = 0;
@@ -1510,7 +1610,7 @@ function crashDrone() {
   const titleEl = document.getElementById('msgTitle');
   titleEl.textContent = '💥 CRASH!';
   titleEl.style.color = '#f66';
-  document.getElementById('msgText').textContent = 'Your drone hit the ground too hard. Hits: ' + hitCount + ' | Kills: ' + killCount + ' | Battery: ' + Math.round(battery/BATTERY_MAX*100) + '%';
+  document.getElementById('msgText').textContent = '[' + getDiff().label + '] Your drone hit the ground too hard. Hits: ' + hitCount + ' | Kills: ' + killCount + ' | Battery: ' + Math.round(battery/BATTERY_MAX*100) + '%';
   document.querySelector('#messageBox button').textContent = 'RESPAWN';
   document.getElementById('messageOverlay').style.display = 'flex';
 }
@@ -1835,12 +1935,22 @@ function animate() {
 }
 
 // ===================== START =====================
-window.startGame = function() {
+window.startGame = function(diffKey) {
+  setDifficulty(diffKey);
   document.getElementById('startScreen').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
   started = true;
+  resetDrone();
   flightStartTime = Date.now();
   clock.getDelta();
+};
+
+window.backToMenu = function() {
+  started = false;
+  crashed = false;
+  document.getElementById('messageOverlay').style.display = 'none';
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('startScreen').classList.remove('hidden');
 };
 
 // Initialize
