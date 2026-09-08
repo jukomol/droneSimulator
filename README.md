@@ -20,15 +20,27 @@ A browser-based 3D drone combat simulator built with **Three.js**. Pilot an atta
 - **Battery system** with drain proportional to throttle and speed
 
 ### Combat System
-- **10 enemy UAVs** flying at different altitudes (15m–90m) with three patrol patterns: circular, figure-8, and zigzag
-- **Target lock-on** — a targeting cone highlights the nearest enemy in your crosshairs
-- **Auto-aim assist** — 35% trajectory blend toward locked targets for satisfying hits
+- **Enemy UAVs** flying at different altitudes (15m–90m) with three patrol patterns: circular, figure-8, and zigzag — count and toughness scale with difficulty
+- **Target lock-on** — a targeting cone highlights the nearest enemy in your crosshairs (cone width scales with difficulty)
+- **Auto-aim assist** — trajectory blend toward locked targets for satisfying hits (strength scales with difficulty, down to none on Impossible)
 - **Swept collision detection** — ray-segment intersection prevents projectiles from tunneling through fast-moving targets
 - **Projectile pooling** — 80 pre-allocated projectiles with shared geometry/materials for zero-lag rapid fire
-- **Health system** — each enemy takes 3 hits to destroy, with a floating health bar
+- **Health system** — each enemy takes multiple hits to destroy (scales with difficulty), with a floating health bar
 - **Explosion particle effects** on hits and kills
 - **Hit marker** flash on successful hits
-- **Victory condition** — destroy all 10 enemies to complete the mission
+- **Victory condition** — destroy every enemy UAV to complete the mission
+
+### Difficulty Modes
+Pick a difficulty on the start screen — it controls enemy count/health/speed, auto-aim assist, lock-on cone width, battery capacity/drain, and how forgiving crashes are:
+
+| Difficulty | UAVs | Hits to Kill | Enemy Speed | Auto-Aim | Battery | Crash Tolerance |
+|-----------|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Easy** | 6 | 2 | 0.7× | 55% | 700 | High |
+| **Medium** | 10 | 3 | 1.0× | 35% | 500 | Normal |
+| **Hard** | 14 | 4 | 1.4× | 18% | 380 | Low |
+| **Impossible** | 18 | 5 | 1.9× | none | 260 | Very low |
+
+The current difficulty is shown as a badge under the compass during flight, and can be changed anytime by choosing **MAIN MENU** from the crash/mission-complete screen.
 
 ### Environment
 - Procedurally generated **rolling hills terrain** with color-coded crop fields (wheat, corn, soy, hay, grass, tilled)
@@ -117,9 +129,10 @@ The entire game is a single self-contained HTML file (~1850 lines) with no exter
 | **Projectile pool** | 80 pre-allocated `Mesh` objects with shared `SphereGeometry`/`MeshBasicMaterial`, reused via active flag — zero per-shot allocation |
 | **Collision (projectiles)** | Swept sphere-vs-sphere: closest-point-on-segment to enemy center, prevents tunneling at 120 m/s |
 | **Collision (drone)** | Cylinder (XZ radius) + height band check against buildings/trees |
-| **Targeting** | Forward-dot-product cone test (36°) against alive enemies within 200m |
-| **Auto-aim** | 35% `lerp` of shoot direction toward locked target position |
-| **Enemy AI** | Three parametric patrol patterns (circle, lemniscate, zigzag) with sinusoidal altitude bobbing |
+| **Targeting** | Forward-dot-product cone test against alive enemies within 200m; cone angle narrows as difficulty increases |
+| **Auto-aim** | `lerp` of shoot direction toward locked target position; blend strength scales from 55% (Easy) down to 0% (Impossible) |
+| **Enemy AI** | Three parametric patrol patterns (circle, lemniscate, zigzag) with sinusoidal altitude bobbing; patrol/bob speed scales with difficulty |
+| **Difficulty** | A single config object per mode drives enemy count/health/speed, auto-aim, lock-on cone, battery capacity/drain, and crash tolerance |
 
 ### Performance Optimizations
 - **Object pooling** for projectiles and explosion particles — no runtime allocation/deallocation
@@ -150,21 +163,24 @@ That's it. One file.
 - **Watch the radar** — red dots above you are bright red, below you are lighter; use the altitude arrows to find targets
 - **Get close** — auto-aim is more effective at shorter ranges
 - **Conserve battery** — altitude hold uses less power than manual throttle jockeying
-- **Don't crash** — hitting the ground above 12 m/s vertical speed or 25 m/s total speed destroys your drone
+- **Don't crash** — hitting the ground too hard destroys your drone; the exact threshold gets stricter as difficulty increases
+- **Start on Easy** if you're new to the flight model — it's far more forgiving on crashes, battery, and auto-aim
 
 ---
 
 ## 🔄 Reset Behavior
 
-Pressing `R` (or the reset button) performs a **full reset**:
+Pressing `R` (or the **RESPAWN** button) performs a **full reset** on the current difficulty:
 - ✅ Drone returns to spawn position with zero velocity
-- ✅ Battery refills to 100%
+- ✅ Battery refills to 100% (of the current difficulty's capacity)
 - ✅ Hit count, kill count, and shots fired reset to 0
 - ✅ All projectiles cleared
 - ✅ All explosion particles cleared
-- ✅ All 10 enemies respawn at new random positions and altitudes
+- ✅ All enemies respawn at new random positions and altitudes
 - ✅ Altitude hold turns off
 - ✅ Flight timer resets
+
+Choosing **MAIN MENU** from the crash/mission-complete screen instead returns you to the start screen so you can pick a different difficulty.
 
 ---
 
